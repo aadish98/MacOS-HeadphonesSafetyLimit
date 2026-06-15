@@ -18,6 +18,16 @@ struct AudioRouteState {
     let currentVolume: Double?
     let canSetVolume: Bool
 
+    // Protection applies to every output except the built-in MacBook speakers.
+    var isLimited: Bool {
+        switch kind {
+        case .builtInSpeakers, .unavailable:
+            return false
+        case .wiredHeadphones, .bluetoothHeadphones, .usbHeadphones, .other:
+            return true
+        }
+    }
+
     static let unavailable = AudioRouteState(
         deviceID: kAudioObjectUnknown,
         deviceName: "No Output Device",
@@ -45,13 +55,6 @@ final class AudioController: ObservableObject {
             enforceVolumeCeilingIfNeeded(reason: "ceiling changed")
         }
     }
-    @Published var applyToWired = true {
-        didSet { enforceVolumeCeilingIfNeeded(reason: "scope changed") }
-    }
-    @Published var applyToBluetooth = true {
-        didSet { enforceVolumeCeilingIfNeeded(reason: "scope changed") }
-    }
-
     private var activeDeviceID: AudioDeviceID = kAudioObjectUnknown
     private var volumeListenerDeviceID: AudioDeviceID = kAudioObjectUnknown
     private var isApplyingVolumeClamp = false
@@ -132,15 +135,13 @@ final class AudioController: ObservableObject {
     func apply(settings: SettingsStore) {
         protectionEnabled = settings.protectionEnabled
         volumeCeiling = settings.volumeCeiling
-        applyToWired = settings.applyToWired
-        applyToBluetooth = settings.applyToBluetooth
         enforceVolumeCeilingIfNeeded(reason: "settings applied")
     }
 
     func enforceVolumeCeilingIfNeeded(reason: String = "volume changed") {
         guard !isApplyingVolumeClamp else { return }
         guard protectionEnabled else { return }
-        guard route.isHeadphones, isRouteInScope(route) else { return }
+        guard route.isLimited else { return }
         guard let currentVolume = route.currentVolume else { return }
         guard currentVolume > volumeCeiling + clampTolerance else { return }
 
@@ -216,17 +217,6 @@ final class AudioController: ObservableObject {
         let volumeDescription = route.currentVolume.map { "\(Int(($0 * 100).rounded()))%" } ?? "unknown volume"
         let capability = route.canSetVolume ? "controllable" : "read-only"
         return "\(route.deviceName) · \(route.kind.rawValue) · \(volumeDescription) · \(capability)"
-    }
-
-    private func isRouteInScope(_ route: AudioRouteState) -> Bool {
-        switch route.kind {
-        case .wiredHeadphones, .usbHeadphones:
-            return applyToWired
-        case .bluetoothHeadphones:
-            return applyToBluetooth
-        case .builtInSpeakers, .other, .unavailable:
-            return false
-        }
     }
 }
 

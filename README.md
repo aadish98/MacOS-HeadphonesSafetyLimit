@@ -2,16 +2,16 @@
 
 Headphone Safety Limit is a small macOS menu-bar app that approximates iOS's **Headphone Safety -> Reduce Loud Audio** feature for Mac.
 
-macOS does not expose the same content-aware loudness limiter that iOS uses, so this app takes a practical proxy approach: when the active output route is detected as headphones or earphones, it caps the system output volume to a user-defined ceiling and re-applies that cap whenever the volume or active output route changes.
+macOS does not expose the same content-aware loudness limiter that iOS uses, so this app takes a practical proxy approach: it caps the system output volume to a user-defined ceiling for every output device except the built-in MacBook speakers, and re-applies that cap whenever the volume or active output route changes.
 
 ## What It Does
 
 - Detects the currently active macOS output device.
-- Classifies wired, USB, and Bluetooth headphone routes.
-- Applies a single global volume ceiling to whichever headphone route is active.
-- Watches for output-device changes, device add/remove events, and volume changes.
-- Rebinds listeners when the active output route changes, so it can follow several connected headphones without clamping inactive devices.
-- Persists the protection toggle, ceiling, and wired/Bluetooth scope settings.
+- Applies a single global volume ceiling to every active output except the built-in MacBook speakers (wired, USB, Bluetooth, HDMI, AirPlay, external, etc.).
+- Leaves the built-in MacBook speakers unlimited.
+- Watches for output-device changes, device add/remove events, and volume changes, with a periodic safety-net re-check.
+- Rebinds listeners when the active output route changes, so it can follow several connected devices without clamping inactive ones.
+- Persists the protection toggle and ceiling.
 
 ## What It Does Not Do
 
@@ -41,11 +41,12 @@ open HeadphoneSafety.app
 
 ## Usage
 
-Open the menu-bar item, enable **Reduce Loud Audio**, and choose a volume ceiling. The app only clamps when the active output is detected as headphones/earphones and the matching scope toggle is enabled.
+Open the menu-bar item, enable **Reduce Loud Audio**, and choose a volume ceiling. The app clamps the active output to the ceiling for every device except the built-in MacBook speakers.
 
 For best validation, test with:
 
 - Built-in speakers: should not clamp.
 - Wired headphones/earphones: should clamp.
 - Bluetooth headphones/earphones: should clamp.
+- Other outputs (HDMI, AirPlay, external speakers/DAC): should clamp.
 - Several connected outputs: switching the active route should move protection to the newly active route.

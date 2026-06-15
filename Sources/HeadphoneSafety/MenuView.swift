@@ -31,7 +31,7 @@ struct MenuView: View {
 
             Divider()
 
-            scopeControls
+            policyNote
 
             Divider()
 
@@ -69,14 +69,13 @@ struct MenuView: View {
         }
     }
 
-    private var scopeControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Protect")
-                .font(.subheadline.weight(.semibold))
-
-            Toggle("Wired / USB headphones", isOn: binding(\.applyToWired))
-            Toggle("Bluetooth headphones", isOn: binding(\.applyToBluetooth))
-        }
+    private var policyNote: some View {
+        Label(
+            "Applies to every output except the built-in MacBook speakers.",
+            systemImage: "speaker.wave.2"
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
     }
 
     private var statusSection: some View {
@@ -92,8 +91,8 @@ struct MenuView: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if !audioController.route.isHeadphones {
-                Text("Not detected as headphones, so no cap is applied.")
+            if !audioController.route.isLimited {
+                Text("Built-in speakers are not limited.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if !audioController.route.canSetVolume {
@@ -108,31 +107,15 @@ struct MenuView: View {
         Int((settings.volumeCeiling * 100).rounded())
     }
 
-    private var currentVolumePercent: Int? {
-        audioController.route.currentVolume.map { Int(($0 * 100).rounded()) }
-    }
-
     private var headerSubtitle: String {
         guard settings.protectionEnabled else { return "Protection is off" }
-        guard audioController.route.isHeadphones else { return "Waiting for headphones" }
-        guard isCurrentRouteInScope else { return "Current headphones are out of scope" }
+        guard audioController.route.isLimited else { return "Built-in speakers (not limited)" }
         return "Protecting at \(ceilingPercent)% max"
     }
 
     private var statusIconName: String {
         guard settings.protectionEnabled else { return "headphones" }
-        return audioController.route.isHeadphones && isCurrentRouteInScope ? "ear.badge.checkmark" : "headphones"
-    }
-
-    private var isCurrentRouteInScope: Bool {
-        switch audioController.route.kind {
-        case .wiredHeadphones, .usbHeadphones:
-            return settings.applyToWired
-        case .bluetoothHeadphones:
-            return settings.applyToBluetooth
-        case .builtInSpeakers, .other, .unavailable:
-            return false
-        }
+        return audioController.route.isLimited ? "ear.badge.checkmark" : "headphones"
     }
 
     private var roughDBLabel: String {

@@ -16,6 +16,6 @@ struct HeadphoneSafetyApp: App {
 
     private var menuBarIconName: String {
         guard settings.protectionEnabled else { return "headphones" }
-        return audioController.route.isHeadphones ? "ear.badge.checkmark" : "headphones"
+        return audioController.route.isLimited ? "ear.badge.checkmark" : "headphones"
     }
 }

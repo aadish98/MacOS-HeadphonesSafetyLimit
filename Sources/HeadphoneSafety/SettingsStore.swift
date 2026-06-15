@@ -5,8 +5,6 @@ final class SettingsStore: ObservableObject {
     enum Keys {
         static let protectionEnabled = "protectionEnabled"
         static let volumeCeiling = "volumeCeiling"
-        static let applyToWired = "applyToWired"
-        static let applyToBluetooth = "applyToBluetooth"
     }
 
     @Published var protectionEnabled: Bool {
@@ -24,14 +22,6 @@ final class SettingsStore: ObservableObject {
         }
     }
 
-    @Published var applyToWired: Bool {
-        didSet { defaults.set(applyToWired, forKey: Keys.applyToWired) }
-    }
-
-    @Published var applyToBluetooth: Bool {
-        didSet { defaults.set(applyToBluetooth, forKey: Keys.applyToBluetooth) }
-    }
-
     private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
@@ -39,7 +29,5 @@ final class SettingsStore: ObservableObject {
 
         protectionEnabled = defaults.object(forKey: Keys.protectionEnabled) as? Bool ?? true
         volumeCeiling = defaults.object(forKey: Keys.volumeCeiling) as? Double ?? 0.55
-        applyToWired = defaults.object(forKey: Keys.applyToWired) as? Bool ?? true
-        applyToBluetooth = defaults.object(forKey: Keys.applyToBluetooth) as? Bool ?? true
     }
 }
