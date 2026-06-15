@@ -2,27 +2,20 @@ import AppKit
 import SwiftUI
 
 @main
+@MainActor
 struct HeadphoneSafetyApp: App {
+    @StateObject private var audioController = AudioController()
+    @StateObject private var settings = SettingsStore()
+
     var body: some Scene {
-        MenuBarExtra("Headphone Safety", systemImage: "headphones") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Headphone Safety")
-                    .font(.headline)
-
-                Text("CoreAudio protection will be available in the next milestone.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                Divider()
-
-                Button("Quit") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .keyboardShortcut("q")
-            }
-            .padding()
-            .frame(width: 280)
+        MenuBarExtra("Headphone Safety", systemImage: menuBarIconName) {
+            MenuView(audioController: audioController, settings: settings)
         }
         .menuBarExtraStyle(.window)
+    }
+
+    private var menuBarIconName: String {
+        guard settings.protectionEnabled else { return "headphones" }
+        return audioController.route.isHeadphones ? "ear.badge.checkmark" : "headphones"
     }
 }
