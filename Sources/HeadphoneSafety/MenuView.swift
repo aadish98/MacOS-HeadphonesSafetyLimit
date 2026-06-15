@@ -6,100 +6,98 @@ struct MenuView: View {
     @ObservedObject var settings: SettingsStore
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             header
-
-            Divider()
-
-            Toggle("Reduce Loud Audio", isOn: binding(\.protectionEnabled))
-                .toggleStyle(.switch)
-
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Volume Ceiling")
-                    Spacer()
-                    Text("\(ceilingPercent)%")
-                        .monospacedDigit()
-                }
-
-                Slider(value: binding(\.volumeCeiling), in: 0.1...1.0, step: 0.01)
-
-                Text("\(roughDBLabel) · volume-cap proxy")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Divider()
-
-            policyNote
-
-            Divider()
-
-            statusSection
-
-            Divider()
-
-            Button("Quit Headphone Safety") {
-                NSApplication.shared.terminate(nil)
-            }
-            .keyboardShortcut("q")
+            limitControl
+            footer
         }
-        .padding(14)
-        .frame(width: 340)
+        .padding(18)
+        .frame(width: 300)
         .onAppear {
             audioController.apply(settings: settings)
         }
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: statusIconName)
-                .font(.title2)
-                .symbolRenderingMode(.hierarchical)
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(iconTint.opacity(0.16))
+                Image(systemName: "headphones")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(iconTint)
+            }
+            .frame(width: 36, height: 36)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Headphone Safety")
-                    .font(.headline)
-                Text(headerSubtitle)
-                    .font(.caption)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Reduce Loud Audio")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(statusLine)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
 
-            Spacer()
+            Spacer(minLength: 8)
+
+            Toggle("", isOn: binding(\.protectionEnabled))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
         }
     }
 
-    private var policyNote: some View {
-        Label(
-            "Applies to every output except the built-in MacBook speakers.",
-            systemImage: "speaker.wave.2"
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
+    private var limitControl: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Volume Limit")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(ceilingPercent)%")
+                    .font(.system(size: 13, weight: .semibold))
+                    .monospacedDigit()
+            }
+
+            HStack(spacing: 9) {
+                Image(systemName: "speaker.wave.1.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                Slider(value: binding(\.volumeCeiling), in: 0.1...1.0)
+                    .controlSize(.small)
+                Image(systemName: "speaker.wave.3.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Text("Approximately \(estimatedDB) dB max")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .opacity(settings.protectionEnabled ? 1 : 0.4)
+        .disabled(!settings.protectionEnabled)
+        .animation(.easeInOut(duration: 0.15), value: settings.protectionEnabled)
     }
 
-    private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Current Output")
-                .font(.subheadline.weight(.semibold))
+    private var footer: some View {
+        HStack(spacing: 0) {
+            Text("Built-in speakers stay unlimited")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.tertiary)
 
-            Text(audioController.route.deviceName)
-                .font(.body)
+            Spacer(minLength: 8)
 
-            Text(audioController.statusMessage)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if !audioController.route.isLimited {
-                Text("Built-in speakers are not limited.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else if !audioController.route.canSetVolume {
-                Text("This output appears read-only to CoreAudio.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                Text("Quit")
+                    .font(.system(size: 11))
             }
+            .buttonStyle(.borderless)
+            .foregroundStyle(.secondary)
+            .keyboardShortcut("q")
         }
     }
 
@@ -107,30 +105,34 @@ struct MenuView: View {
         Int((settings.volumeCeiling * 100).rounded())
     }
 
-    private var headerSubtitle: String {
-        guard settings.protectionEnabled else { return "Protection is off" }
-        guard audioController.route.isLimited else { return "Built-in speakers (not limited)" }
-        return "Protecting at \(ceilingPercent)% max"
+    // Smooth, continuous estimate so the dB readout always tracks the slider.
+    // Maps the 10%-100% volume range onto an iOS-style 75-100 dB span.
+    private var estimatedDB: Int {
+        let normalized = (settings.volumeCeiling - 0.1) / 0.9
+        let value = 75 + 25 * max(0, min(1, normalized))
+        return Int(value.rounded())
     }
 
-    private var statusIconName: String {
-        guard settings.protectionEnabled else { return "headphones" }
-        return audioController.route.isLimited ? "ear.badge.checkmark" : "headphones"
-    }
+    private var statusLine: String {
+        guard settings.protectionEnabled else { return "Protection off" }
 
-    private var roughDBLabel: String {
-        switch settings.volumeCeiling {
-        case ..<0.4:
-            return "~70 dB equivalent"
-        case ..<0.55:
-            return "~75 dB equivalent"
-        case ..<0.7:
-            return "~85 dB equivalent"
-        case ..<0.85:
-            return "~90 dB equivalent"
-        default:
-            return "~95+ dB equivalent"
+        let route = audioController.route
+        switch route.kind {
+        case .unavailable:
+            return "No output device"
+        case .builtInSpeakers:
+            return "Built-in speakers · not limited"
+        case .wiredHeadphones, .bluetoothHeadphones, .usbHeadphones, .other:
+            if !route.canSetVolume {
+                return "\(route.deviceName) · volume read-only"
+            }
+            return "Limiting \(route.deviceName)"
         }
+    }
+
+    private var iconTint: Color {
+        guard settings.protectionEnabled else { return .gray }
+        return audioController.route.isLimited ? .green : .gray
     }
 
     private func binding<Value>(_ keyPath: ReferenceWritableKeyPath<SettingsStore, Value>) -> Binding<Value> {

@@ -8,14 +8,9 @@ struct HeadphoneSafetyApp: App {
     @StateObject private var settings = SettingsStore()
 
     var body: some Scene {
-        MenuBarExtra("Headphone Safety", systemImage: menuBarIconName) {
+        MenuBarExtra("Headphone Safety", systemImage: "headphones") {
             MenuView(audioController: audioController, settings: settings)
         }
         .menuBarExtraStyle(.window)
-    }
-
-    private var menuBarIconName: String {
-        guard settings.protectionEnabled else { return "headphones" }
-        return audioController.route.isLimited ? "ear.badge.checkmark" : "headphones"
     }
 }
