@@ -330,19 +330,21 @@ private extension AudioController {
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        var dataSize = UInt32(MemoryLayout<CFString>.size)
-        var deviceName = "" as CFString
+        var dataSize = UInt32(MemoryLayout<CFString?>.size)
+        var deviceName: CFString?
 
-        let status = AudioObjectGetPropertyData(
-            deviceID,
-            &propertyAddress,
-            0,
-            nil,
-            &dataSize,
-            &deviceName
-        )
+        let status = withUnsafeMutableBytes(of: &deviceName) { rawBuffer in
+            AudioObjectGetPropertyData(
+                deviceID,
+                &propertyAddress,
+                0,
+                nil,
+                &dataSize,
+                rawBuffer.baseAddress!
+            )
+        }
 
-        guard status == noErr else { return nil }
+        guard status == noErr, let deviceName else { return nil }
         return deviceName as String
     }
 
@@ -356,7 +358,7 @@ private extension AudioController {
         }
 
         var mutableDataSourceID = dataSourceID
-        var dataSourceName = "" as CFString
+        var dataSourceName: CFString?
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDataSourceNameForIDCFString,
             mScope: kAudioDevicePropertyScopeOutput,
@@ -365,12 +367,12 @@ private extension AudioController {
 
         var status: OSStatus = noErr
         withUnsafeMutablePointer(to: &mutableDataSourceID) { inputPointer in
-            withUnsafeMutablePointer(to: &dataSourceName) { outputPointer in
+            withUnsafeMutableBytes(of: &dataSourceName) { outputBuffer in
                 var translation = AudioValueTranslation(
                     mInputData: UnsafeMutableRawPointer(inputPointer),
                     mInputDataSize: UInt32(MemoryLayout<UInt32>.size),
-                    mOutputData: UnsafeMutableRawPointer(outputPointer),
-                    mOutputDataSize: UInt32(MemoryLayout<CFString>.size)
+                    mOutputData: outputBuffer.baseAddress!,
+                    mOutputDataSize: UInt32(MemoryLayout<CFString?>.size)
                 )
                 var dataSize = UInt32(MemoryLayout<AudioValueTranslation>.size)
 
@@ -385,7 +387,7 @@ private extension AudioController {
             }
         }
 
-        guard status == noErr else { return nil }
+        guard status == noErr, let dataSourceName else { return nil }
         return dataSourceName as String
     }
 
