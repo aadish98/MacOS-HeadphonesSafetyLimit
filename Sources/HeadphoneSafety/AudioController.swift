@@ -37,7 +37,11 @@ final class AudioController: ObservableObject {
     }
     @Published var volumeCeiling = 0.55 {
         didSet {
-            volumeCeiling = max(0, min(1, volumeCeiling))
+            let clamped = max(0, min(1, volumeCeiling))
+            if volumeCeiling != clamped {
+                volumeCeiling = clamped
+                return
+            }
             enforceVolumeCeilingIfNeeded(reason: "ceiling changed")
         }
     }

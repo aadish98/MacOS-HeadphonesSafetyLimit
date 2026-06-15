@@ -15,7 +15,11 @@ final class SettingsStore: ObservableObject {
 
     @Published var volumeCeiling: Double {
         didSet {
-            volumeCeiling = max(0, min(1, volumeCeiling))
+            let clamped = max(0, min(1, volumeCeiling))
+            if volumeCeiling != clamped {
+                volumeCeiling = clamped
+                return
+            }
             defaults.set(volumeCeiling, forKey: Keys.volumeCeiling)
         }
     }
