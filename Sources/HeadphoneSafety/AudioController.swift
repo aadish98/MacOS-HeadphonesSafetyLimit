@@ -99,6 +99,14 @@ final class AudioController: ObservableObject {
         }
     }
 
+    func apply(settings: SettingsStore) {
+        protectionEnabled = settings.protectionEnabled
+        volumeCeiling = settings.volumeCeiling
+        applyToWired = settings.applyToWired
+        applyToBluetooth = settings.applyToBluetooth
+        enforceVolumeCeilingIfNeeded(reason: "settings applied")
+    }
+
     func enforceVolumeCeilingIfNeeded(reason: String = "volume changed") {
         guard !isApplyingVolumeClamp else { return }
         guard protectionEnabled else { return }
