@@ -15,6 +15,7 @@ mkdir -p "$BUNDLE_NAME/Contents/Resources"
 
 cp ".build/release/$APP_NAME" "$BUNDLE_NAME/Contents/MacOS/$APP_NAME"
 cp "Resources/Info.plist" "$BUNDLE_NAME/Contents/Info.plist"
+cp "Resources/AppIcon.icns" "$BUNDLE_NAME/Contents/Resources/AppIcon.icns"
 chmod +x "$BUNDLE_NAME/Contents/MacOS/$APP_NAME"
 
 echo "Built $BUNDLE_NAME"
