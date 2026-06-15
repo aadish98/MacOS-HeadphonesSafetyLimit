@@ -55,6 +55,8 @@ final class AudioController: ObservableObject {
     private var activeDeviceID: AudioDeviceID = kAudioObjectUnknown
     private var volumeListenerDeviceID: AudioDeviceID = kAudioObjectUnknown
     private var isApplyingVolumeClamp = false
+    private var monitorTimer: Timer?
+    private let clampTolerance = 0.02
     private var clientData: UnsafeMutableRawPointer {
         UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
     }
@@ -62,6 +64,30 @@ final class AudioController: ObservableObject {
     init() {
         addSystemListeners()
         refreshRoute(rebindVolumeListener: true)
+        startMonitorTimer()
+    }
+
+    private func startMonitorTimer() {
+        monitorTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.35, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.reevaluate() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        monitorTimer = timer
+    }
+
+    private func reevaluate() {
+        guard activeDeviceID != kAudioObjectUnknown else { return }
+
+        let newState = makeRouteState(for: activeDeviceID)
+        if newState.currentVolume != route.currentVolume
+            || newState.deviceID != route.deviceID
+            || newState.canSetVolume != route.canSetVolume {
+            route = newState
+            statusMessage = routeStatus(for: route)
+        }
+
+        enforceVolumeCeilingIfNeeded(reason: "monitor")
     }
 
     func refreshRoute(rebindVolumeListener: Bool) {
@@ -116,7 +142,7 @@ final class AudioController: ObservableObject {
         guard protectionEnabled else { return }
         guard route.isHeadphones, isRouteInScope(route) else { return }
         guard let currentVolume = route.currentVolume else { return }
-        guard currentVolume > volumeCeiling else { return }
+        guard currentVolume > volumeCeiling + clampTolerance else { return }
 
         guard route.canSetVolume else {
             statusMessage = "\(route.deviceName) is above the ceiling, but macOS reports its volume as read-only."
@@ -252,7 +278,8 @@ private extension AudioController {
         addListener(
             objectID: deviceID,
             selector: kAudioDevicePropertyVolumeScalar,
-            scope: kAudioDevicePropertyScopeOutput
+            scope: kAudioDevicePropertyScopeOutput,
+            element: kAudioObjectPropertyElementWildcard
         )
         volumeListenerDeviceID = deviceID
     }
@@ -263,7 +290,8 @@ private extension AudioController {
         removeListener(
             objectID: volumeListenerDeviceID,
             selector: kAudioDevicePropertyVolumeScalar,
-            scope: kAudioDevicePropertyScopeOutput
+            scope: kAudioDevicePropertyScopeOutput,
+            element: kAudioObjectPropertyElementWildcard
         )
         volumeListenerDeviceID = kAudioObjectUnknown
     }
@@ -271,12 +299,13 @@ private extension AudioController {
     func addListener(
         objectID: AudioObjectID,
         selector: AudioObjectPropertySelector,
-        scope: AudioObjectPropertyScope
+        scope: AudioObjectPropertyScope,
+        element: AudioObjectPropertyElement = kAudioObjectPropertyElementMain
     ) {
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: selector,
             mScope: scope,
-            mElement: kAudioObjectPropertyElementMain
+            mElement: element
         )
         AudioObjectAddPropertyListener(
             objectID,
@@ -289,12 +318,13 @@ private extension AudioController {
     func removeListener(
         objectID: AudioObjectID,
         selector: AudioObjectPropertySelector,
-        scope: AudioObjectPropertyScope
+        scope: AudioObjectPropertyScope,
+        element: AudioObjectPropertyElement = kAudioObjectPropertyElementMain
     ) {
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: selector,
             mScope: scope,
-            mElement: kAudioObjectPropertyElementMain
+            mElement: element
         )
         AudioObjectRemovePropertyListener(
             objectID,
