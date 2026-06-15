@@ -32,9 +32,25 @@ struct AudioRouteState {
 final class AudioController: ObservableObject {
     @Published private(set) var route: AudioRouteState = .unavailable
     @Published private(set) var statusMessage = "Starting audio monitor..."
+    @Published var protectionEnabled = true {
+        didSet { enforceVolumeCeilingIfNeeded(reason: "settings changed") }
+    }
+    @Published var volumeCeiling = 0.55 {
+        didSet {
+            volumeCeiling = max(0, min(1, volumeCeiling))
+            enforceVolumeCeilingIfNeeded(reason: "ceiling changed")
+        }
+    }
+    @Published var applyToWired = true {
+        didSet { enforceVolumeCeilingIfNeeded(reason: "scope changed") }
+    }
+    @Published var applyToBluetooth = true {
+        didSet { enforceVolumeCeilingIfNeeded(reason: "scope changed") }
+    }
 
     private var activeDeviceID: AudioDeviceID = kAudioObjectUnknown
     private var volumeListenerDeviceID: AudioDeviceID = kAudioObjectUnknown
+    private var isApplyingVolumeClamp = false
     private var clientData: UnsafeMutableRawPointer {
         UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
     }
@@ -61,6 +77,7 @@ final class AudioController: ObservableObject {
         activeDeviceID = deviceID
         route = makeRouteState(for: deviceID)
         statusMessage = routeStatus(for: route)
+        enforceVolumeCeilingIfNeeded(reason: rebindVolumeListener ? "route changed" : "volume changed")
     }
 
     func setOutputVolume(_ scalar: Double) {
@@ -80,6 +97,25 @@ final class AudioController: ObservableObject {
         if didSetAnyChannel {
             refreshRoute(rebindVolumeListener: false)
         }
+    }
+
+    func enforceVolumeCeilingIfNeeded(reason: String = "volume changed") {
+        guard !isApplyingVolumeClamp else { return }
+        guard protectionEnabled else { return }
+        guard route.isHeadphones, isRouteInScope(route) else { return }
+        guard let currentVolume = route.currentVolume else { return }
+        guard currentVolume > volumeCeiling else { return }
+
+        guard route.canSetVolume else {
+            statusMessage = "\(route.deviceName) is above the ceiling, but macOS reports its volume as read-only."
+            return
+        }
+
+        isApplyingVolumeClamp = true
+        setOutputVolume(volumeCeiling)
+        isApplyingVolumeClamp = false
+
+        statusMessage = "Reduced \(route.deviceName) to \(Int((volumeCeiling * 100).rounded()))% (\(reason))."
     }
 
     private func makeRouteState(for deviceID: AudioDeviceID) -> AudioRouteState {
@@ -142,6 +178,17 @@ final class AudioController: ObservableObject {
         let volumeDescription = route.currentVolume.map { "\(Int(($0 * 100).rounded()))%" } ?? "unknown volume"
         let capability = route.canSetVolume ? "controllable" : "read-only"
         return "\(route.deviceName) · \(route.kind.rawValue) · \(volumeDescription) · \(capability)"
+    }
+
+    private func isRouteInScope(_ route: AudioRouteState) -> Bool {
+        switch route.kind {
+        case .wiredHeadphones, .usbHeadphones:
+            return applyToWired
+        case .bluetoothHeadphones:
+            return applyToBluetooth
+        case .builtInSpeakers, .other, .unavailable:
+            return false
+        }
     }
 }
 
