@@ -1,4 +1,5 @@
 import Foundation
+import HeadphoneSafetyCore
 
 @MainActor
 final class SettingsStore: ObservableObject {
@@ -27,7 +28,7 @@ final class SettingsStore: ObservableObject {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
 
-        protectionEnabled = defaults.object(forKey: Keys.protectionEnabled) as? Bool ?? true
-        volumeCeiling = defaults.object(forKey: Keys.volumeCeiling) as? Double ?? 0.55
+        protectionEnabled = defaults.object(forKey: Keys.protectionEnabled) as? Bool ?? VolumeLimitSettings.defaultProtectionEnabled
+        volumeCeiling = defaults.object(forKey: Keys.volumeCeiling) as? Double ?? VolumeLimitSettings.defaultCeiling
     }
 }

@@ -1,14 +1,6 @@
 import CoreAudio
 import Foundation
-
-enum AudioRouteKind: String {
-    case builtInSpeakers = "Built-in Speakers"
-    case wiredHeadphones = "Wired Headphones"
-    case bluetoothHeadphones = "Bluetooth Headphones"
-    case usbHeadphones = "USB Headphones"
-    case other = "Other Output"
-    case unavailable = "Unavailable"
-}
+import HeadphoneSafetyCore
 
 struct AudioRouteState {
     let deviceID: AudioDeviceID
@@ -18,15 +10,7 @@ struct AudioRouteState {
     let currentVolume: Double?
     let canSetVolume: Bool
 
-    // Protection applies to every output except the built-in MacBook speakers.
-    var isLimited: Bool {
-        switch kind {
-        case .builtInSpeakers, .unavailable:
-            return false
-        case .wiredHeadphones, .bluetoothHeadphones, .usbHeadphones, .other:
-            return true
-        }
-    }
+    var isLimited: Bool { kind.isLimited }
 
     static let unavailable = AudioRouteState(
         deviceID: kAudioObjectUnknown,
@@ -45,7 +29,7 @@ final class AudioController: ObservableObject {
     @Published var protectionEnabled = true {
         didSet { enforceVolumeCeilingIfNeeded(reason: "settings changed") }
     }
-    @Published var volumeCeiling = 0.55 {
+    @Published var volumeCeiling = VolumeLimitSettings.defaultCeiling {
         didSet {
             let clamped = max(0, min(1, volumeCeiling))
             if volumeCeiling != clamped {
@@ -165,7 +149,7 @@ final class AudioController: ObservableObject {
             scope: kAudioObjectPropertyScopeGlobal
         )
 
-        let kind = routeKind(for: deviceID, deviceName: deviceName, transportType: transportType)
+        let kind = AudioRouteCore.routeKind(for: deviceID, deviceName: deviceName, transportType: transportType)
         let volume = readOutputVolume(for: deviceID)
         let canSetVolume = canSetOutputVolume(for: deviceID)
 
@@ -177,36 +161,6 @@ final class AudioController: ObservableObject {
             currentVolume: volume.map(Double.init),
             canSetVolume: canSetVolume
         )
-    }
-
-    private func routeKind(
-        for deviceID: AudioDeviceID,
-        deviceName: String,
-        transportType: UInt32?
-    ) -> AudioRouteKind {
-        switch transportType {
-        case kAudioDeviceTransportTypeBluetooth, kAudioDeviceTransportTypeBluetoothLE:
-            return .bluetoothHeadphones
-        case kAudioDeviceTransportTypeUSB:
-            return .usbHeadphones
-        case kAudioDeviceTransportTypeBuiltIn:
-            if let sourceName = currentOutputDataSourceName(for: deviceID),
-               sourceName.localizedCaseInsensitiveContains("headphone") {
-                return .wiredHeadphones
-            }
-
-            return .builtInSpeakers
-        default:
-            let lowercasedName = deviceName.lowercased()
-            if lowercasedName.contains("headphone")
-                || lowercasedName.contains("airpods")
-                || lowercasedName.contains("earbuds")
-                || lowercasedName.contains("earphones") {
-                return .bluetoothHeadphones
-            }
-
-            return .other
-        }
     }
 
     private func routeStatus(for route: AudioRouteState) -> String {
@@ -370,49 +324,6 @@ private extension AudioController {
 
         guard status == noErr, let deviceName else { return nil }
         return deviceName as String
-    }
-
-    func currentOutputDataSourceName(for deviceID: AudioDeviceID) -> String? {
-        guard let dataSourceID = readUInt32Property(
-            kAudioDevicePropertyDataSource,
-            objectID: deviceID,
-            scope: kAudioDevicePropertyScopeOutput
-        ) else {
-            return nil
-        }
-
-        var mutableDataSourceID = dataSourceID
-        var dataSourceName: CFString?
-        var propertyAddress = AudioObjectPropertyAddress(
-            mSelector: kAudioDevicePropertyDataSourceNameForIDCFString,
-            mScope: kAudioDevicePropertyScopeOutput,
-            mElement: kAudioObjectPropertyElementMain
-        )
-
-        var status: OSStatus = noErr
-        withUnsafeMutablePointer(to: &mutableDataSourceID) { inputPointer in
-            withUnsafeMutableBytes(of: &dataSourceName) { outputBuffer in
-                var translation = AudioValueTranslation(
-                    mInputData: UnsafeMutableRawPointer(inputPointer),
-                    mInputDataSize: UInt32(MemoryLayout<UInt32>.size),
-                    mOutputData: outputBuffer.baseAddress!,
-                    mOutputDataSize: UInt32(MemoryLayout<CFString?>.size)
-                )
-                var dataSize = UInt32(MemoryLayout<AudioValueTranslation>.size)
-
-                status = AudioObjectGetPropertyData(
-                    deviceID,
-                    &propertyAddress,
-                    0,
-                    nil,
-                    &dataSize,
-                    &translation
-                )
-            }
-        }
-
-        guard status == noErr, let dataSourceName else { return nil }
-        return dataSourceName as String
     }
 
     func readUInt32Property(

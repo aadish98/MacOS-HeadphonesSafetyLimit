@@ -1,4 +1,5 @@
 import AppKit
+import HeadphoneSafetyCore
 import SwiftUI
 
 struct MenuView: View {
@@ -105,12 +106,8 @@ struct MenuView: View {
         Int((settings.volumeCeiling * 100).rounded())
     }
 
-    // Smooth, continuous estimate so the dB readout always tracks the slider.
-    // Maps the 10%-100% volume range onto an iOS-style 75-100 dB span.
     private var estimatedDB: Int {
-        let normalized = (settings.volumeCeiling - 0.1) / 0.9
-        let value = 75 + 25 * max(0, min(1, normalized))
-        return Int(value.rounded())
+        VolumeLimitSettings.estimatedDB(forVolumeCeiling: settings.volumeCeiling)
     }
 
     private var statusLine: String {

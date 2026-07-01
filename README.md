@@ -12,6 +12,16 @@ macOS does not expose the same content-aware loudness limiter that iOS uses, so 
 - Watches for output-device changes, device add/remove events, and volume changes, with a periodic safety-net re-check.
 - Rebinds listeners when the active output route changes, so it can follow several connected devices without clamping inactive ones.
 - Persists the protection toggle and ceiling.
+- Launches automatically when audio plays through any output except the built-in MacBook speakers (via a background login-item monitor).
+- Defaults to a 40% volume ceiling (approximately 85 dB in the UI estimate).
+
+## Auto Launch
+
+The app bundles a lightweight background monitor (`HeadphoneSafetyMonitor`) that registers as a login item the first time you open Headphone Safety. When audio starts playing on a non-built-in output (headphones, Bluetooth, USB, HDMI, AirPlay, etc.), the monitor launches the menu-bar app if it is not already running.
+
+Built-in MacBook speaker playback does not trigger a launch.
+
+For login-item registration to succeed, install the app to `/Applications` and open it once from there.
 
 ## What It Does Not Do
 
@@ -33,10 +43,16 @@ To build a launchable menu-bar `.app` bundle:
 ./build_app.sh
 ```
 
+To run verification tests and install to `/Applications`:
+
+```sh
+./scripts/verify_and_install.sh
+```
+
 Then run:
 
 ```sh
-open HeadphoneSafety.app
+open /Applications/HeadphoneSafety.app
 ```
 
 ## Usage
